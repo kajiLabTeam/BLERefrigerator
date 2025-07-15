@@ -8,11 +8,8 @@ import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
-import android.os.ParcelUuid
 import androidx.annotation.OptIn
-import androidx.media3.common.util.Log
 import androidx.media3.common.util.UnstableApi
-import java.util.UUID
 
 class GetBLE {
     private val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
@@ -22,8 +19,7 @@ class GetBLE {
     @OptIn(UnstableApi::class)
     @SuppressLint("MissingPermission")
     fun startScan() {
-        var count = 0
-//        var door = false //true = ドアが空いている
+        var count = 0.0
         bluetoothLeScanner?.let {
             if (scanCallback == null) {
                 scanCallback = object : ScanCallback() {
@@ -35,26 +31,24 @@ class GetBLE {
                         val receiveRssi = result.rssi
                         uuids?.forEach { _ ->
                             val address = device.address
-                            if (address == "DC:0D:30:15:9A:AF") {
-                                if (receiveRssi > -64) {
+                            // 冷蔵庫に入れたビーコンのMACアドレスをここに入力
+                            if (address == "DC:0D:30:15:9A:D0") {  //"DC:0D:30:15:9A:AF""48:31:77:51:5A:1A"
+                                deviceRSSI.value = receiveRssi
+                                if (receiveRssi > threshold) {
                                     if (count < 5) {
-                                        count+=1
+                                        count += 1.5
                                     } else
-                                        if (count == 5){
-                                        door.value = true
-                                    }
-                                } else{
-                                    if (count > 0){
-                                        count --
-                                    }else if(count == 0){
+                                        if (count >= 5.0) {
+                                            door.value = true
+                                        }
+                                } else {
+                                    if (count > 0) {
+                                        count -= 1.5
+                                    } else if (count <= 0) {
                                         door.value = false
+                                        count = 0.0
                                     }
                                 }
-//                                val uuidString = uuid.uuid.toString()
-//                                val logMessage = "Device: ${device.address}, UUID: $uuidString, RSSI: $receiveRssi"
-//                                Log.d("GetBLE", logMessage) // リアルタイムでログに出力
-                            val doorString = door.toString()
-                            Log.d("Door", "$doorString, RSSI: $receiveRssi, Count:$count")
                             }
                         }
                     }
@@ -62,7 +56,6 @@ class GetBLE {
                     @OptIn(UnstableApi::class)
                     override fun onScanFailed(errorCode: Int) {
                         super.onScanFailed(errorCode)
-                        Log.e("GetBLE", "Scan failed with error code $errorCode")
                     }
                 }
                 // スキャンのセッティング
@@ -70,22 +63,17 @@ class GetBLE {
                     .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
                     .build()
 
-                val mUuid = UUID.fromString("0000fef5-0000-1000-8000-00805f9b34fb") // ここにサービスのUUIDを設定
+                //val mUuid = UUID.fromString("138c35b6-0000-1000-8000-00805f9b34fb") // ここにサービスのUUIDを設定"0000fef5-0000-1000-8000-00805f9b34fb"
+                // ↑がなくてもたぶん動くので今回は不使用
 
                 val scanFilters = mutableListOf<ScanFilter>()
                 val filter = ScanFilter.Builder()
-                    .setServiceUuid(ParcelUuid(mUuid))
+                    .setServiceUuid(null)   //ParcelUuid(mUuid)　同上
                     .build()
                 scanFilters.add(filter)
 
                 bluetoothLeScanner.startScan(scanFilters, scanSettings, scanCallback)
-
-                Log.d("GetBLE", "scan started")
-            } else {
-                Log.d("GetBLE", "Scan already running")
             }
-        } ?: run {
-            Log.e("GetBLE", "BluetoothLeScanner is not initialized")
         }
     }
 
@@ -95,6 +83,5 @@ class GetBLE {
     fun stopScan() {
         scanCallback?.let { bluetoothLeScanner?.stopScan(it) }
         scanCallback = null
-        Log.d("GetBLE", "scan stopped")
     }
 }
